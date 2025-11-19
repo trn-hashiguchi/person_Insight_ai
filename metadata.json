@@ -1,0 +1,5 @@
+{
+  "name": "Person Insight AI (人物分析)",
+  "description": "画像内の人物を検出し、年齢、性別、服装、そして有名人であればその名前を特定して分析するアプリです。",
+  "requestFramePermissions": []
+}
