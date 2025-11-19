@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Shirt, Calendar, Smile, Star, BadgeCheck } from 'lucide-react';
+import { Shirt, Calendar, Star, BadgeCheck } from 'lucide-react';
 import { PersonProfile } from '../types';
 
 interface PersonCardProps {

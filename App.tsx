@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const [manualApiKey, setManualApiKey] = useState('');
   
   const [currentImage, setCurrentImage] = useState<string | null>(null);
-  const [mimeType, setMimeType] = useState<string>('');
+  const [, setMimeType] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
@@ -71,7 +71,7 @@ const App: React.FC = () => {
 
     try {
       // Pass manualApiKey if we are not in AI Studio
-      const data = await analyzeImage(base64, type, isAiStudio ? undefined : manualApiKey);
+      const data = await analyzeImage(base64, type, manualApiKey);
       setResult(data);
     } catch (err: any) {
       console.error(err);

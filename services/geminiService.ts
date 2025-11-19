@@ -1,11 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-export const analyzeImage = async (base64Image: string, mimeType: string, apiKey?: string): Promise<AnalysisResult> => {
+export const analyzeImage = async (base64Image: string, mimeType: string, apiKey: string): Promise<AnalysisResult> => {
   try {
     // Use provided key, or fallback to process.env.API_KEY if available (handled by build tool or env)
     // When deployed on GH Pages without manual input, this might fail if not handled in UI
-    const key = apiKey || (typeof process !== 'undefined' && process.env ? process.env.API_KEY : undefined);
+    const key = apiKey;
     
     if (!key) {
       throw new Error("API Key is missing. Please provide a valid Gemini API Key.");
