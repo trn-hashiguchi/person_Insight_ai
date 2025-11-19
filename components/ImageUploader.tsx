@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Upload, Image as ImageIcon, AlertCircle, Lock } from 'lucide-react';
 
 interface ImageUploaderProps {
   onImageSelected: (base64: string, mimeType: string) => void;
@@ -64,8 +64,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, disabled
   return (
     <div
       className={`relative border-2 border-dashed rounded-2xl p-8 transition-all duration-200 ease-in-out text-center
-        ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        ${disabled 
+          ? 'border-slate-300 bg-slate-100 cursor-not-allowed' 
+          : isDragging 
+            ? 'border-indigo-500 bg-indigo-50' 
+            : 'border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer'
+        }
       `}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -79,26 +83,34 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, disabled
         disabled={disabled}
       />
       
-      <div className="flex flex-col items-center justify-center space-y-4 pointer-events-none">
-        <div className={`p-4 rounded-full ${isDragging ? 'bg-indigo-100' : 'bg-white shadow-sm'}`}>
-          {isDragging ? (
-            <ImageIcon className="w-8 h-8 text-indigo-600" />
-          ) : (
-            <Upload className="w-8 h-8 text-slate-400" />
-          )}
+      {disabled ? (
+        <div className="flex flex-col items-center justify-center space-y-4 text-slate-500">
+          <Lock className="w-10 h-10" />
+          <p className="font-semibold">APIキーが設定されていません</p>
+          <p className="text-sm">下の設定エリアからAPIキーを入力してください。</p>
         </div>
-        <div className="space-y-1">
-          <p className="text-base font-semibold text-slate-700">
-            画像をアップロード
-          </p>
-          <p className="text-sm text-slate-500">
-            クリックして選択 または ドラッグ＆ドロップ
-          </p>
+      ) : (
+        <div className="flex flex-col items-center justify-center space-y-4 pointer-events-none">
+          <div className={`p-4 rounded-full ${isDragging ? 'bg-indigo-100' : 'bg-white shadow-sm'}`}>
+            {isDragging ? (
+              <ImageIcon className="w-8 h-8 text-indigo-600" />
+            ) : (
+              <Upload className="w-8 h-8 text-slate-400" />
+            )}
+          </div>
+          <div className="space-y-1">
+            <p className="text-base font-semibold text-slate-700">
+              画像をアップロード
+            </p>
+            <p className="text-sm text-slate-500">
+              クリックして選択 または ドラッグ＆ドロップ
+            </p>
+          </div>
+          <div className="text-xs text-slate-400">
+            PNG, JPG, WEBP (最大 10MB)
+          </div>
         </div>
-        <div className="text-xs text-slate-400">
-          PNG, JPG, WEBP (最大 10MB)
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="mt-4 flex items-center justify-center gap-2 text-red-500 text-sm bg-red-50 p-2 rounded-lg">

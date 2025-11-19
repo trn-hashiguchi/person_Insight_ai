@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, RefreshCw, Info, Key, ExternalLink, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Sparkles, RefreshCw, Info, Key, ExternalLink } from 'lucide-react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import PersonCard from './components/PersonCard';
@@ -20,49 +20,50 @@ const COLORS = [
 ];
 
 const App: React.FC = () => {
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [modelName, setModelName] = useState('gemini-2.5-flash');
   const [isAiStudio, setIsAiStudio] = useState(false);
-  const [manualApiKey, setManualApiKey] = useState('');
-  
+  const [showApiKeySettings, setShowApiKeySettings] = useState(!apiKey);
+
   const [currentImage, setCurrentImage] = useState<string | null>(null);
   const [, setMimeType] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const accordionRef = useRef<HTMLDivElement>(null);
+
+  const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (accordionRef.current && !accordionRef.current.contains(e.relatedTarget as Node)) {
+      setShowApiKeySettings(false);
+    }
+  };
+
 
   useEffect(() => {
-    const checkApiKey = async () => {
-      if ((window as any).aistudio && (window as any).aistudio.hasSelectedApiKey) {
-        setIsAiStudio(true);
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
-      } else {
-        // Fallback if not running in AI Studio context
-        setIsAiStudio(false);
-        setHasApiKey(false);
-      }
-    };
-    checkApiKey();
+    // In AI Studio, we can auto-select the key.
+    // For this demo, we'll just check if the context exists.
+    if ((window as any).aistudio) {
+      setIsAiStudio(true);
+    }
   }, []);
 
   const handleSelectKey = async () => {
     if ((window as any).aistudio && (window as any).aistudio.openSelectKey) {
-      await (window as any).aistudio.openSelectKey();
-      // Assume success after returning from the dialog
-      setHasApiKey(true);
-    }
-  };
-
-  const handleManualKeySubmit = () => {
-    if (manualApiKey.trim().length > 0) {
-      setHasApiKey(true);
+      const selectedKey = await (window as any).aistudio.openSelectKey();
+      if (selectedKey) {
+        setApiKey(selectedKey);
+      }
     }
   };
 
   const getColor = (id: number) => COLORS[(id - 1) % COLORS.length];
 
   const handleImageSelected = async (base64: string, type: string) => {
+    if (!apiKey) {
+      setError('分析を開始する前に、Gemini APIキーを入力してください。');
+      return;
+    }
     setCurrentImage(base64);
     setMimeType(type);
     setResult(null);
@@ -70,18 +71,12 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
 
     try {
-      // Pass manualApiKey if we are not in AI Studio
-      const data = await analyzeImage(base64, type, manualApiKey);
+      const data = await analyzeImage(base64, type, apiKey, modelName);
       setResult(data);
     } catch (err: any) {
       console.error(err);
-      // Check specifically for "Requested entity was not found" which implies API key issues
       if (err.message && (err.message.includes("Requested entity was not found") || err.message.includes("API Key"))) {
-         setError('APIキーが無効か、見つかりません。もう一度キーを設定してください。');
-         if (isAiStudio) {
-           setHasApiKey(false);
-         }
-         // For manual key, we don't reset immediately to let user edit the text field if they want
+         setError('APIキーが無効か、見つかりません。キーを確認して再試行してください。');
       } else {
          setError('画像の解析中にエラーが発生しました。別の画像を試すか、しばらく待ってから再試行してください。');
       }
@@ -97,96 +92,20 @@ const App: React.FC = () => {
     setMimeType('');
   };
 
-  if (!hasApiKey) {
-    return (
-      <div className="min-h-screen bg-slate-50 pb-12">
-        <Header />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="max-w-md mx-auto bg-white rounded-2xl shadow-lg border border-slate-200 p-8 text-center space-y-6">
-            <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
-              <Key className="w-8 h-8 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">APIキーの設定</h2>
-              <p className="text-slate-600 mt-2">
-                このアプリを使用するには、Gemini APIキーが必要です。
-              </p>
-            </div>
-            
-            {isAiStudio ? (
-              <button 
-                onClick={handleSelectKey}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors shadow-md"
-              >
-                APIキーを選択
-              </button>
-            ) : (
-              <div className="space-y-4">
-                <div className="text-left">
-                  <label htmlFor="apiKey" className="block text-sm font-medium text-slate-700 mb-1">Gemini APIキー</label>
-                  <input
-                    id="apiKey"
-                    type="password"
-                    value={manualApiKey}
-                    onChange={(e) => setManualApiKey(e.target.value)}
-                    placeholder="AIzaSy..."
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-                <button 
-                  onClick={handleManualKeySubmit}
-                  disabled={!manualApiKey}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors shadow-md"
-                >
-                  開始する
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            <div className="pt-4 border-t border-slate-100">
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600 transition-colors"
-              >
-                <Info className="w-4 h-4" />
-                料金体系と請求について
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 pb-12">
       <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* Intro Section */}
-        {!currentImage && (
-          <div className="max-w-2xl mx-auto text-center mb-12 space-y-4">
-            <h2 className="text-3xl font-bold text-slate-900">
-              写真の中の人物を瞬時に分析
-            </h2>
-            <p className="text-lg text-slate-600">
-              Gemini AIが画像をスキャンし、服装、年齢、性別、特徴を詳しく解説します。
-              まずは画像をアップロードしてください。
-            </p>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Left Column: Image Display & Controls */}
           <div className={`lg:col-span-7 space-y-6 ${!currentImage ? 'lg:col-start-3 lg:col-span-8' : ''}`}>
             {!currentImage ? (
-              <ImageUploader onImageSelected={handleImageSelected} />
+              <ImageUploader 
+                onImageSelected={handleImageSelected} 
+                disabled={!apiKey}
+              />
             ) : (
               <div className="space-y-4">
                  {/* Image Container */}
@@ -211,22 +130,6 @@ const App: React.FC = () => {
                    <div className="rounded-xl bg-red-50 p-6 text-center border border-red-100">
                      <div className="flex flex-col items-center gap-2">
                        <p className="text-red-600 font-medium">{error}</p>
-                       {error.includes("APIキー") && isAiStudio && (
-                         <button 
-                           onClick={handleSelectKey}
-                           className="mt-2 text-sm bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50"
-                         >
-                           APIキーを再設定
-                         </button>
-                       )}
-                       {error.includes("APIキー") && !isAiStudio && (
-                         <button 
-                           onClick={() => setHasApiKey(false)}
-                           className="mt-2 text-sm bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50"
-                         >
-                           APIキーを再入力
-                         </button>
-                       )}
                      </div>
                    </div>
                 ) : null}
@@ -299,6 +202,81 @@ const App: React.FC = () => {
               ) : null}
             </div>
           )}
+        </div>
+
+        {/* API Key Input Section */}
+        <div className="max-w-2xl mx-auto mt-12">
+          <div ref={accordionRef} onBlur={handleBlur} className="bg-white p-6 rounded-2xl shadow-md border border-slate-200 mb-8">
+            <button 
+              onClick={() => setShowApiKeySettings(!showApiKeySettings)}
+              className="flex items-center justify-between w-full text-lg font-bold text-slate-900 pb-4 focus:outline-none"
+            >
+              <span>Gemini API設定</span>
+              {showApiKeySettings ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              )}
+            </button>
+            {showApiKeySettings && (
+              <div className="border-t border-slate-200 pt-4">
+                <div className="flex items-start gap-4">
+                  <div className="bg-indigo-100 w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center">
+                    <Key className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div className="flex-grow">
+                    <label htmlFor="apiKey" className="block text-base font-bold text-slate-900">
+                      Gemini APIキー
+                    </label>
+                    <p className="text-sm text-slate-600 mt-1 mb-3">
+                      画像を分析するにはAPIキーとモデルの選択が必要です。キーは安全にブラウザ内に保存されます。
+                    </p>
+                    <div className="flex gap-2 items-center">
+                      {isAiStudio ? (
+                        <button 
+                          onClick={handleSelectKey}
+                          className="flex-grow py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors shadow-sm"
+                        >
+                          Google AI Studioでキーを選択
+                        </button>
+                      ) : (
+                        <input
+                          id="apiKey"
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="AIzaSy..."
+                          className="flex-grow w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        />
+                      )}
+                      <select
+                        value={modelName}
+                        onChange={(e) => setModelName(e.target.value)}
+                        className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      >
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                      </select>
+                    </div>
+                    <a 
+                      href="https://ai.google.dev/gemini-api/docs/billing" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 transition-colors"
+                    >
+                      <Info className="w-3 h-3" />
+                      料金体系と請求について
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
