@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, RefreshCw, Info, Key, ExternalLink } from 'lucide-react';
+import { Sparkles, RefreshCw, Info, Key, ExternalLink, ArrowRight } from 'lucide-react';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import PersonCard from './components/PersonCard';
@@ -21,6 +21,9 @@ const COLORS = [
 
 const App: React.FC = () => {
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isAiStudio, setIsAiStudio] = useState(false);
+  const [manualApiKey, setManualApiKey] = useState('');
+  
   const [currentImage, setCurrentImage] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -31,11 +34,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkApiKey = async () => {
       if ((window as any).aistudio && (window as any).aistudio.hasSelectedApiKey) {
+        setIsAiStudio(true);
         const hasKey = await (window as any).aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
       } else {
-        // Fallback if not running in AI Studio context, assume env var is handled externally
-        setHasApiKey(true);
+        // Fallback if not running in AI Studio context
+        setIsAiStudio(false);
+        setHasApiKey(false);
       }
     };
     checkApiKey();
@@ -45,6 +50,12 @@ const App: React.FC = () => {
     if ((window as any).aistudio && (window as any).aistudio.openSelectKey) {
       await (window as any).aistudio.openSelectKey();
       // Assume success after returning from the dialog
+      setHasApiKey(true);
+    }
+  };
+
+  const handleManualKeySubmit = () => {
+    if (manualApiKey.trim().length > 0) {
       setHasApiKey(true);
     }
   };
@@ -59,14 +70,18 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
 
     try {
-      const data = await analyzeImage(base64, type);
+      // Pass manualApiKey if we are not in AI Studio
+      const data = await analyzeImage(base64, type, isAiStudio ? undefined : manualApiKey);
       setResult(data);
     } catch (err: any) {
       console.error(err);
       // Check specifically for "Requested entity was not found" which implies API key issues
-      if (err.message && err.message.includes("Requested entity was not found")) {
-         setError('APIキーが無効か、見つかりません。もう一度キーを選択してください。');
-         setHasApiKey(false);
+      if (err.message && (err.message.includes("Requested entity was not found") || err.message.includes("API Key"))) {
+         setError('APIキーが無効か、見つかりません。もう一度キーを設定してください。');
+         if (isAiStudio) {
+           setHasApiKey(false);
+         }
+         // For manual key, we don't reset immediately to let user edit the text field if they want
       } else {
          setError('画像の解析中にエラーが発生しました。別の画像を試すか、しばらく待ってから再試行してください。');
       }
@@ -94,16 +109,40 @@ const App: React.FC = () => {
             <div>
               <h2 className="text-2xl font-bold text-slate-900">APIキーの設定</h2>
               <p className="text-slate-600 mt-2">
-                このアプリを使用するには、Gemini APIキーが必要です。下のボタンからキーを選択してください。
+                このアプリを使用するには、Gemini APIキーが必要です。
               </p>
             </div>
             
-            <button 
-              onClick={handleSelectKey}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors shadow-md"
-            >
-              APIキーを選択
-            </button>
+            {isAiStudio ? (
+              <button 
+                onClick={handleSelectKey}
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors shadow-md"
+              >
+                APIキーを選択
+              </button>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-left">
+                  <label htmlFor="apiKey" className="block text-sm font-medium text-slate-700 mb-1">Gemini APIキー</label>
+                  <input
+                    id="apiKey"
+                    type="password"
+                    value={manualApiKey}
+                    onChange={(e) => setManualApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <button 
+                  onClick={handleManualKeySubmit}
+                  disabled={!manualApiKey}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors shadow-md"
+                >
+                  開始する
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             <div className="pt-4 border-t border-slate-100">
               <a 
@@ -172,12 +211,20 @@ const App: React.FC = () => {
                    <div className="rounded-xl bg-red-50 p-6 text-center border border-red-100">
                      <div className="flex flex-col items-center gap-2">
                        <p className="text-red-600 font-medium">{error}</p>
-                       {error.includes("APIキー") && (
+                       {error.includes("APIキー") && isAiStudio && (
                          <button 
                            onClick={handleSelectKey}
                            className="mt-2 text-sm bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50"
                          >
                            APIキーを再設定
+                         </button>
+                       )}
+                       {error.includes("APIキー") && !isAiStudio && (
+                         <button 
+                           onClick={() => setHasApiKey(false)}
+                           className="mt-2 text-sm bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50"
+                         >
+                           APIキーを再入力
                          </button>
                        )}
                      </div>
